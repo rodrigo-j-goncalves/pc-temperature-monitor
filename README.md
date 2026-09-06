@@ -3,14 +3,13 @@
 A Linux daemon that discovers every available temperature sensor (CPU, NVMe,
 GPU, NICs, ...), samples them at a configurable interval (default: every 30
 minutes), and stores the history in SQLite. A static Plotly dashboard
-visualizes the data, and a live view can optionally be shown on a spare
-virtual terminal.
+visualizes the data.
 
 ```
 .
-├── monitor.py                          # main daemon (sampling loop, storage, tty3 display)
+├── monitor.py                          # main daemon (sampling loop, storage)
 ├── sensors.py                          # sensor discovery and reading (hwmon, nvidia-smi)
-├── config_JC.yaml, config_HC.yaml      # one config per machine -- sampling interval, data_dir, tty3 settings
+├── config_JC.yaml, config_HC.yaml      # one config per machine -- sampling interval, data_dir
 ├── data_JC/, data_HC/                  # one data dir per machine (created at runtime)
 │   ├── temperatures.db                 # primary store: tidy SQLite table
 │   ├── temperatures.csv                # wide CSV export, pandas/R/Excel-readable (generated)
@@ -80,8 +79,7 @@ told which sensors exist on the new machine.
   seen, so it only grows — a flaky sensor cycling on and off doesn't trigger
   repeated full rewrites.
 - **`latest.json`** holds only the most recent reading per sensor, written
-  atomically every tick, for the dashboard's current-value cards and the
-  tty3 display.
+  atomically every tick, for the dashboard's current-value cards.
 - Timestamps are UTC internally, e.g. `2026-08-05T17:43:12.123456Z` —
   sortable as plain text and parsed natively by pandas/R. The web dashboard
   converts to your browser's local time for display only; the stored files
@@ -115,9 +113,6 @@ for the machine you're on:
 | `data_dir` | Directory (relative to the config file, or absolute) holding the DB, CSV, and JSON — set differently per machine, e.g. `data_JC`, `data_HC`. |
 | `sqlite_filename`, `csv_filename`, `latest_json_filename` | Output filenames inside `data_dir`. |
 | `csv_export_interval_seconds` | How often new SQLite rows are appended to the CSV. |
-| `tty_display.enabled` | Show a live text readout on a virtual terminal. |
-| `tty_display.device` | Which tty device to write to (default `/dev/tty3`). |
-| `tty_display.refresh_interval_seconds` | How often the tty view redraws. |
 | `log_level` | Python logging level (`INFO`, `DEBUG`, ...). |
 
 ### Changing the sampling interval
@@ -153,11 +148,6 @@ python3 monitor.py --config config_HC.yaml   # or whichever config is this machi
 Stop with Ctrl-C (or `SIGTERM`) — the daemon exports any pending CSV rows
 before exiting.
 
-If `tty_display.enabled` is `true`, the daemon must run as root (or with
-write access to `/dev/tty3`) to draw on the console. Without that access it
-logs one warning and disables the tty view for the rest of the run, rather
-than crashing.
-
 ## Installing as a systemd service
 
 The unit file in `systemd/temperature-monitor.service` has this project's
@@ -176,9 +166,8 @@ sed -i \
 
 (or just open the file and edit the `ExecStart` line by hand).
 
-It runs as `root` (needed for `/dev/tty3` and, on some systems, certain
-hwmon nodes), restarts automatically on crash, and sends its logs to the
-journal.
+It runs as `root` (needed on some systems for certain hwmon nodes),
+restarts automatically on crash, and sends its logs to the journal.
 
 ```bash
 sudo cp systemd/temperature-monitor.service /etc/systemd/system/
@@ -193,24 +182,13 @@ systemctl status temperature-monitor.service
 journalctl -u temperature-monitor.service -f
 ```
 
-If you use the tty3 live display, free that console from the login prompt
-first so the daemon isn't fighting `getty` for it:
-
-```bash
-sudo systemctl disable --now getty@tty3.service
-```
-
-View the live display by switching to that virtual terminal with
-`Ctrl+Alt+F3` (the exact key varies by desktop environment).
-
-If you don't want/need the tty3 display, set `tty_display.enabled: false` in
-this machine's config file and you can instead run the service as an
-unprivileged user (remove `User=root` from the unit file, or set it to your
-username) as long as that user can read the relevant `/sys/class/hwmon/**`
-files, which is normally world-readable. This also avoids
-`data_<machine>/temperatures.db` ending up root-owned, which otherwise means
-any write-class DB operation (manual `VACUUM`, checkpoint, editing rows)
-needs `sudo` — plain reads work fine either way.
+You can instead run the service as an unprivileged user (remove `User=root`
+from the unit file, or set it to your username) as long as that user can
+read the relevant `/sys/class/hwmon/**` files, which is normally
+world-readable. This also avoids `data_<machine>/temperatures.db` ending up
+root-owned, which otherwise means any write-class DB operation (manual
+`VACUUM`, checkpoint, editing rows) needs `sudo` — plain reads work fine
+either way.
 
 ## Running this on more than one machine
 
@@ -250,9 +228,8 @@ python3 -m http.server 8000
 Then open `http://<host>:8000/web/?data_dir=data_HC` in a browser,
 substituting the `data_dir` this machine's config file actually uses
 (defaults to plain `data` if the parameter is omitted). This is independent
-of the daemon (which keeps logging regardless) and of the `tty_display`
-setting — the dashboard is an ordinary webpage, no console/tty switching
-involved.
+of the daemon, which keeps logging regardless — the dashboard is an
+ordinary webpage.
 
 Two things that trip people up:
 

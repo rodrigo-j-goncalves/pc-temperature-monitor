@@ -2,8 +2,8 @@
 
 Reads sensors (see sensors.py) once per configured interval, stores every
 reading in a tidy/long SQLite table, mirrors the current values into a small
-JSON file for the dashboard/live display, and periodically exports the
-accumulated data into a wide-format CSV that pandas/R/Excel can open directly.
+JSON file for the dashboard, and periodically exports the accumulated data
+into a wide-format CSV that pandas/R/Excel can open directly.
 """
 
 from __future__ import annotations
@@ -225,54 +225,6 @@ def export_csv(conn: sqlite3.Connection, csv_path: Path, last_exported_ts: str |
 
 
 # --------------------------------------------------------------------------
-# Live tty3 display
-# --------------------------------------------------------------------------
-
-class TtyDisplay:
-    def __init__(self, device_path: str):
-        self.device_path = device_path
-        self._fh = None
-        self._disabled = False
-
-    def _ensure_open(self) -> None:
-        if self._fh is not None or self._disabled:
-            return
-        try:
-            self._fh = open(self.device_path, "w")
-        except OSError as exc:
-            logger.warning("Cannot open %s for live display, disabling it: %s", self.device_path, exc)
-            self._disabled = True
-
-    def render(self, ts: str, readings: dict[str, float], sensor_labels: dict[str, str]) -> None:
-        if self._disabled:
-            return
-        self._ensure_open()
-        if self._fh is None:
-            return
-        lines = [f"Temperature Monitor -- {ts}", "=" * 60]
-        for sensor_id in sorted(readings):
-            label = sensor_labels.get(sensor_id, sensor_id)
-            lines.append(f"{label:<40} {readings[sensor_id]:6.1f} C")
-        if not readings:
-            lines.append("(no sensor readings this tick)")
-        text = "\033[H\033[J" + "\n".join(lines) + "\n"
-        try:
-            self._fh.write(text)
-            self._fh.flush()
-        except OSError as exc:
-            logger.warning("Lost access to %s, disabling live display: %s", self.device_path, exc)
-            self._disabled = True
-            self._fh = None
-
-    def close(self) -> None:
-        if self._fh is not None:
-            try:
-                self._fh.close()
-            except OSError:
-                pass
-
-
-# --------------------------------------------------------------------------
 # Main loop
 # --------------------------------------------------------------------------
 
@@ -303,10 +255,6 @@ def main() -> None:
     rescan_interval = float(config["sensor_rescan_interval_seconds"])
     csv_export_interval = float(config["csv_export_interval_seconds"])
 
-    tty_cfg = config.get("tty_display", {}) or {}
-    tty_display = TtyDisplay(tty_cfg["device"]) if tty_cfg.get("enabled") else None
-    tty_refresh_interval = float(tty_cfg.get("refresh_interval_seconds", sample_interval))
-
     conn = init_db(db_path)
 
     stop_event = threading.Event()
@@ -324,7 +272,6 @@ def main() -> None:
 
     last_rescan = time.monotonic()
     last_csv_export = time.monotonic()
-    last_tty_render = 0.0
     last_exported_ts = _read_last_exported_ts(csv_path)
 
     next_tick = time.monotonic()
@@ -341,10 +288,6 @@ def main() -> None:
                     )
                 insert_readings(conn, ts, readings)
                 write_latest_json(latest_json_path, ts, readings, sensor_labels)
-
-                if tty_display and (now_mono - last_tty_render) >= tty_refresh_interval:
-                    tty_display.render(ts, readings, sensor_labels)
-                    last_tty_render = now_mono
 
                 if (now_mono - last_rescan) >= rescan_interval:
                     sensor_list = sensors.discover_sensors()
@@ -369,8 +312,6 @@ def main() -> None:
             export_csv(conn, csv_path, last_exported_ts)
         except Exception:
             logger.exception("Final CSV export failed")
-        if tty_display:
-            tty_display.close()
         conn.close()
 
 
