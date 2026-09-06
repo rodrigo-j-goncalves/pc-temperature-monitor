@@ -219,7 +219,13 @@ machine too — see [Web dashboard](#web-dashboard).
 The dashboard is static (Plotly loaded from a CDN) and only needs a file
 server — it reads `<data_dir>/temperatures.csv` and `<data_dir>/latest.json`
 via `fetch()`, which browsers block on `file://` URLs, so it must be served
-over HTTP. From the repo root:
+over HTTP.
+
+**Quickest way:** run `./plot_now.sh` from the repo root. It starts the
+server if it isn't already running and opens the dashboard in your default
+browser, auto-detecting whether this machine has `data_HC/` or `data_JC/`.
+
+Or do it by hand, from the repo root:
 
 ```bash
 python3 -m http.server 8000
