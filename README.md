@@ -336,5 +336,6 @@ the same effect; the service doesn't need any file to pre-exist.
 
 ## License and credits
 
-MIT — see [LICENSE](LICENSE). Author: Rodrigo J. Gonçalves.
+MIT — see [LICENSE](LICENSE). Author: Rodrigo J. Gonçalves, developed with
+[Claude Code](https://claude.com/claude-code) (Claude Sonnet 5, Anthropic).
 - I _claudeveloped_ this ([add claude model info])
