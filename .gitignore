@@ -10,7 +10,8 @@
 
 !/.gitignore
 !/README.md
-!/config.yaml
+!/config_HC.yaml
+!/config_JC.yaml
 !/monitor.py
 !/plot.md
 !/sensors.py

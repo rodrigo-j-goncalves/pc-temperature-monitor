@@ -279,7 +279,10 @@ class TtyDisplay:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Temperature monitoring daemon")
     parser.add_argument(
-        "--config", type=Path, default=Path(__file__).resolve().parent / "config.yaml"
+        "--config",
+        type=Path,
+        required=True,
+        help="Path to this machine's config file, e.g. config_HC.yaml",
     )
     args = parser.parse_args()
 

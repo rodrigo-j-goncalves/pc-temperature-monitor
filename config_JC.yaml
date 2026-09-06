@@ -1,0 +1,21 @@
+# Temperature monitor daemon configuration -- JC.
+
+# Sampling
+sample_interval_seconds: 1800       # how often sensors are read and written to SQLite (1800s = 30 min)
+sensor_rescan_interval_seconds: 30  # how often hwmon/nvidia-smi are re-probed for new/removed sensors
+
+# Storage (all paths are filenames resolved relative to data_dir)
+data_dir: data_JC
+sqlite_filename: temperatures.db
+csv_filename: temperatures.csv
+latest_json_filename: latest.json
+csv_export_interval_seconds: 60     # how often new SQLite rows are appended to the CSV
+
+# Live console on a virtual terminal
+tty_display:
+  enabled: false  # disabled: cannot be verified over a remote session without physical/KVM access to this machine
+  device: /dev/tty3
+  refresh_interval_seconds: 1.0
+
+# Logging verbosity (records go to the systemd journal when run as a service)
+log_level: INFO

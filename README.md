@@ -10,9 +10,9 @@ virtual terminal.
 .
 ├── monitor.py                          # main daemon (sampling loop, storage, tty3 display)
 ├── sensors.py                          # sensor discovery and reading (hwmon, nvidia-smi)
-├── config.yaml                         # sampling interval, paths, tty3 settings
-├── data/
-│   ├── temperatures.db                 # primary store: tidy SQLite table (created at runtime)
+├── config_JC.yaml, config_HC.yaml      # one config per machine -- sampling interval, data_dir, tty3 settings
+├── data_JC/, data_HC/                  # one data dir per machine (created at runtime)
+│   ├── temperatures.db                 # primary store: tidy SQLite table
 │   ├── temperatures.csv                # wide CSV export, pandas/R/Excel-readable (generated)
 │   └── latest.json                     # current values, updated every tick (generated)
 ├── web/
@@ -34,11 +34,14 @@ detail further down.
    `~/temperature-monitor`.
 2. Install the one non-stdlib dependency: `pip install pyyaml` (or your
    distro's `python3-yaml` package).
-3. (Optional) Edit `config.yaml` — sampling interval, paths, tty3 display.
-   See [Configuration](#configuration).
-4. Edit `systemd/temperature-monitor.service`: replace both occurrences of
-   the absolute path in `ExecStart` with the actual path where you put this
-   repo (see [Installing as a systemd service](#installing-as-a-systemd-service)).
+3. Pick (or create) this machine's config file, e.g. `config_HC.yaml` — see
+   [Configuration](#configuration) and [Running this on more than one
+   machine](#running-this-on-more-than-one-machine). The only thing that
+   normally needs to differ between machines is `data_dir`.
+4. Edit `systemd/temperature-monitor.service`: replace the absolute path in
+   `ExecStart` with the actual path where you put this repo, and
+   `config_<MACHINE>.yaml` with the config file from step 3 (see [Installing
+   as a systemd service](#installing-as-a-systemd-service)).
 5. Install and enable the service (needs root):
    ```bash
    sudo cp systemd/temperature-monitor.service /etc/systemd/system/
@@ -49,7 +52,8 @@ detail further down.
    ```bash
    python3 -m http.server 8000
    ```
-   then open `http://localhost:8000/web/` in a browser.
+   then open `http://localhost:8000/web/?data_dir=data_HC` in a browser
+   (substitute this machine's actual `data_dir`).
 
 That's it — sensors are discovered automatically, so nothing needs to be
 told which sensors exist on the new machine.
@@ -62,8 +66,11 @@ told which sensors exist on the new machine.
   periodically so sensors that appear or disappear at runtime (a hot-plugged
   NVMe drive, a GPU driver reload, ...) are picked up without restarting the
   daemon. A failed read for one sensor never crashes the tick — it's simply
-  omitted. This is also why nothing needs to be reconfigured per-machine:
-  the same `sensors.py` adapts to whatever hardware it finds.
+  omitted. This is also why `sensors.py` itself never needs per-machine
+  changes: it adapts to whatever hardware it finds. The only thing that
+  differs between machines is which config file (and `data_dir`) you point
+  the daemon at — see [Running this on more than one
+  machine](#running-this-on-more-than-one-machine).
 - **Storage** (`monitor.py`) is a tidy/long SQLite table
   (`timestamp, sensor_id, value_c`), one row per sensor per tick. This is
   what makes "sensors appearing/disappearing" safe: there's no fixed set of
@@ -82,27 +89,30 @@ told which sensors exist on the new machine.
 - The SQLite database grows without bound — there's no automatic pruning of
   old rows. At the default 30-minute interval with ~13 sensors this is
   small for years; if you lower the interval a lot (see below), watch
-  `data/temperatures.db`'s size over time.
+  `data_<machine>/temperatures.db`'s size over time.
 
 ## Requirements
 
 - Python 3.10+ (uses `sqlite3`, `csv`, `json`, `argparse` — all standard
   library).
-- [PyYAML](https://pyyaml.org/) for `config.yaml` (`pip install pyyaml`, or
-  your distro's `python3-yaml` package). This is the one non-stdlib
-  dependency in the whole project.
+- [PyYAML](https://pyyaml.org/) for the YAML config files (`pip install
+  pyyaml`, or your distro's `python3-yaml` package). This is the one
+  non-stdlib dependency in the whole project.
 - `nvidia-smi` on `PATH` if you have an NVIDIA GPU and want its temperature
   logged (optional — its absence is handled gracefully).
 
 ## Configuration
 
-Edit `config.yaml`:
+Each machine has its own config file (`config_JC.yaml`, `config_HC.yaml`,
+...) rather than one shared `config.yaml` — see [Running this on more than
+one machine](#running-this-on-more-than-one-machine) for why. Edit the one
+for the machine you're on:
 
 | Key | Meaning |
 |---|---|
 | `sample_interval_seconds` | How often sensors are read and written to SQLite. |
 | `sensor_rescan_interval_seconds` | How often hwmon/nvidia-smi are re-probed for new/removed sensors. |
-| `data_dir` | Directory (relative to `config.yaml`, or absolute) holding the DB, CSV, and JSON. |
+| `data_dir` | Directory (relative to the config file, or absolute) holding the DB, CSV, and JSON — set differently per machine, e.g. `data_JC`, `data_HC`. |
 | `sqlite_filename`, `csv_filename`, `latest_json_filename` | Output filenames inside `data_dir`. |
 | `csv_export_interval_seconds` | How often new SQLite rows are appended to the CSV. |
 | `tty_display.enabled` | Show a live text readout on a virtual terminal. |
@@ -112,7 +122,8 @@ Edit `config.yaml`:
 
 ### Changing the sampling interval
 
-1. Edit `sample_interval_seconds` in `config.yaml`. It's in seconds, e.g.:
+1. Edit `sample_interval_seconds` in this machine's config file. It's in
+   seconds, e.g.:
    ```yaml
    sample_interval_seconds: 1800   # 30 minutes
    ```
@@ -136,7 +147,7 @@ no-op checks (e.g. "any new rows to export?" → no), which is harmless.
 ## Running manually
 
 ```bash
-python3 monitor.py --config config.yaml
+python3 monitor.py --config config_HC.yaml   # or whichever config is this machine's
 ```
 
 Stop with Ctrl-C (or `SIGTERM`) — the daemon exports any pending CSV rows
@@ -150,16 +161,20 @@ than crashing.
 ## Installing as a systemd service
 
 The unit file in `systemd/temperature-monitor.service` has this project's
-absolute path baked into `ExecStart` (systemd unit files don't expand `~` or
-relative paths). **Before installing on a new machine or from a fresh
-clone, edit both path occurrences in that file** to match where you put the
-repo, e.g.:
+absolute path, and a `config_<MACHINE>.yaml` placeholder, baked into
+`ExecStart` (systemd unit files don't expand `~` or relative paths, and
+can't take an argument at install time). **Before installing on a new
+machine or from a fresh clone, edit `ExecStart`** to match where you put the
+repo and which config file is this machine's, e.g.:
 
 ```bash
-sed -i 's|/path/to/temperature-monitor-logger|/actual/path/to/temperature-monitor-logger|g' systemd/temperature-monitor.service
+sed -i \
+  -e 's|/path/to/temperature-monitor-logger|/actual/path/to/temperature-monitor-logger|g' \
+  -e 's|config_<MACHINE>.yaml|config_HC.yaml|' \
+  systemd/temperature-monitor.service
 ```
 
-(or just open the file and edit the two `ExecStart` paths by hand).
+(or just open the file and edit the `ExecStart` line by hand).
 
 It runs as `root` (needed for `/dev/tty3` and, on some systems, certain
 hwmon nodes), restarts automatically on crash, and sends its logs to the
@@ -189,41 +204,53 @@ View the live display by switching to that virtual terminal with
 `Ctrl+Alt+F3` (the exact key varies by desktop environment).
 
 If you don't want/need the tty3 display, set `tty_display.enabled: false` in
-`config.yaml` and you can instead run the service as an unprivileged user
-(remove `User=root` from the unit file, or set it to your username) as long
-as that user can read the relevant `/sys/class/hwmon/**` files, which is
-normally world-readable. This also avoids `data/temperatures.db` ending up
-root-owned, which otherwise means any write-class DB operation (manual
-`VACUUM`, checkpoint, editing rows) needs `sudo` — plain reads work fine
-either way.
+this machine's config file and you can instead run the service as an
+unprivileged user (remove `User=root` from the unit file, or set it to your
+username) as long as that user can read the relevant `/sys/class/hwmon/**`
+files, which is normally world-readable. This also avoids
+`data_<machine>/temperatures.db` ending up root-owned, which otherwise means
+any write-class DB operation (manual `VACUUM`, checkpoint, editing rows)
+needs `sudo` — plain reads work fine either way.
 
 ## Running this on more than one machine
 
-Each machine gets its own independent clone of this repo, its own local
-`data/` directory (already gitignored, so per-machine data never collides in
-git), and its own systemd unit installed with that machine's actual path
-substituted in (see [Installing as a systemd
-service](#installing-as-a-systemd-service) above). Nothing in `config.yaml`
-itself is machine-specific — sensor discovery is automatic, so the same code
-adapts to whatever hardware it finds.
+Each machine gets its own independent clone of this repo, its own config
+file (`config_JC.yaml`, `config_HC.yaml`, ...) with its own `data_dir`
+(`data_JC`, `data_HC`, ...), and its own systemd unit installed with that
+machine's actual path and config filename substituted in (see [Installing as
+a systemd service](#installing-as-a-systemd-service) above).
+
+**Why per-machine config files instead of one shared `config.yaml`:** if you
+sync/rsync this project folder between machines (e.g. via a NAS), a single
+`config.yaml` with `data_dir: data` would drag whichever machine's
+`data_dir` setting happens to be in the synced copy along with it — which is
+exactly how one machine ended up pointed at another's data in practice. Two
+separate config files (each with its own `data_dir`) can be synced back and
+forth freely without ever fighting over which machine's data a shared
+`data`/ directory belongs to. Everything else in the config is normally
+identical between machines and only needs to change if you actually want
+different behavior (e.g. a different sampling interval) on that machine.
 
 To roll out a fix or feature to every machine: commit and push once from
 wherever you're working, then on each other machine `git pull` and restart
-the service.
+the service. The dashboard needs the right `data_dir` query parameter per
+machine too — see [Web dashboard](#web-dashboard).
 
 ## Web dashboard
 
 The dashboard is static (Plotly loaded from a CDN) and only needs a file
-server — it reads `data/temperatures.csv` and `data/latest.json` via
-`fetch()`, which browsers block on `file://` URLs, so it must be served over
-HTTP. From the repo root:
+server — it reads `<data_dir>/temperatures.csv` and `<data_dir>/latest.json`
+via `fetch()`, which browsers block on `file://` URLs, so it must be served
+over HTTP. From the repo root:
 
 ```bash
 python3 -m http.server 8000
 ```
 
-Then open `http://<host>:8000/web/` in a browser. This is independent of
-the daemon (which keeps logging regardless) and of the `tty_display`
+Then open `http://<host>:8000/web/?data_dir=data_HC` in a browser,
+substituting the `data_dir` this machine's config file actually uses
+(defaults to plain `data` if the parameter is omitted). This is independent
+of the daemon (which keeps logging regardless) and of the `tty_display`
 setting — the dashboard is an ordinary webpage, no console/tty switching
 involved.
 
@@ -260,13 +287,16 @@ it, rather than a misleading straight line interpolated across the outage.
 
 ## Reading the data outside the dashboard
 
+(paths below assume `data_dir` is `data_HC` — substitute this machine's
+actual `data_dir`)
+
 ```python
 import pandas as pd
-df = pd.read_csv("data/temperatures.csv", parse_dates=["timestamp"])
+df = pd.read_csv("data_HC/temperatures.csv", parse_dates=["timestamp"])
 ```
 
 ```r
-df <- read.csv("data/temperatures.csv")
+df <- read.csv("data_HC/temperatures.csv")
 df$timestamp <- as.POSIXct(df$timestamp, format="%Y-%m-%dT%H:%M:%OSZ", tz="UTC")
 ```
 
@@ -274,7 +304,7 @@ Or query SQLite directly for large ranges instead of loading the whole CSV:
 
 ```python
 import sqlite3
-conn = sqlite3.connect("data/temperatures.db")
+conn = sqlite3.connect("data_HC/temperatures.db")
 conn.execute("SELECT * FROM readings WHERE ts > ? ORDER BY ts", ("2026-08-05T00:00:00.000000Z",)).fetchall()
 ```
 
@@ -284,15 +314,16 @@ header row).
 ## How to reset the database (start fresh)
 
 This deletes all logged history — it's not reversible, so make sure you
-don't want to keep it (e.g. `cp -r data/ data-backup/` first if unsure).
+don't want to keep it (e.g. `cp -r data_HC/ data_HC-backup/` first if
+unsure). Substitute this machine's actual `data_dir` for `data_HC` below.
 
 **Always stop the service before deleting.** `monitor.py` recreates
-`data/` and initializes an empty DB/CSV/JSON automatically on startup, so
+`data_dir` and initializes an empty DB/CSV/JSON automatically on startup, so
 stop → delete → start gives a clean reset:
 
 ```bash
 sudo systemctl stop temperature-monitor.service
-rm -rf data/
+rm -rf data_HC/
 sudo systemctl start temperature-monitor.service
 ```
 
@@ -301,10 +332,10 @@ files:
 
 ```bash
 systemctl status temperature-monitor.service
-ls data/
+ls data_HC/
 ```
 
-**Do not delete `data/` while the service keeps running**, without a
+**Do not delete `data_dir` while the service keeps running**, without a
 restart. The daemon's SQLite connection stays alive via its already-open
 file handle even after the directory is removed, so DB writes can keep
 silently going into an orphaned file, while every `latest.json`/CSV write
@@ -315,9 +346,9 @@ inconsistent. If this happens by accident, stop and restart the service
 right after to get back to a clean state.
 
 If you only want to clear the history but keep the current sensor set/config
-untouched, deleting just `data/temperatures.db*` (and its `-wal`/`-shm`
-files) plus `data/temperatures.csv` — leaving `latest.json` alone — has the
-same effect; the service doesn't need any file to pre-exist.
+untouched, deleting just `data_HC/temperatures.db*` (and its `-wal`/`-shm`
+files) plus `data_HC/temperatures.csv` — leaving `latest.json` alone — has
+the same effect; the service doesn't need any file to pre-exist.
 
 ## TODO after a remote install (SSH / RustDesk / VNC / ...)
 
@@ -328,7 +359,7 @@ at, not the one you're remoted into). Once you have physical or KVM access
 to the machine:
 
 - [ ] Free tty3 from the login prompt: `sudo systemctl disable --now getty@tty3.service`.
-- [ ] Set `tty_display.enabled: true` in `config.yaml`.
+- [ ] Set `tty_display.enabled: true` in this machine's config file.
 - [ ] Restart the service: `sudo systemctl restart temperature-monitor.service`.
 - [ ] Switch to the console (`Ctrl+Alt+F3`) and confirm the live readout renders and updates correctly.
 - [ ] If it looks wrong, or `journalctl -u temperature-monitor.service` shows tty-related warnings, set `tty_display.enabled` back to `false`.

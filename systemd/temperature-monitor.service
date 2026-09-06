@@ -4,7 +4,7 @@ After=multi-user.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /path/to/temperature-monitor-logger/monitor.py --config /path/to/temperature-monitor-logger/config.yaml
+ExecStart=/usr/bin/python3 /path/to/temperature-monitor-logger/monitor.py --config /path/to/temperature-monitor-logger/config_<MACHINE>.yaml
 Restart=on-failure
 RestartSec=5
 User=root

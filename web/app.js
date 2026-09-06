@@ -2,8 +2,12 @@
 // Must be served over HTTP (not opened as a file:// URL) since `fetch` of
 // local files is blocked by CORS otherwise. See README for the serve command.
 
-const CSV_PATH = "../data/temperatures.csv";
-const LATEST_JSON_PATH = "../data/latest.json";
+// Which machine's data/ directory to read -- e.g. ?data_dir=data_HC -- since
+// each machine logs into its own data_<name>/ (see config_HC.yaml /
+// config_JC.yaml). Defaults to plain "data" for a single-machine setup.
+const DATA_DIR = new URLSearchParams(window.location.search).get("data_dir") || "data";
+const CSV_PATH = `../${DATA_DIR}/temperatures.csv`;
+const LATEST_JSON_PATH = `../${DATA_DIR}/latest.json`;
 const LATEST_REFRESH_MS = 5000;
 const CSV_REFRESH_MS = 30000;
 
