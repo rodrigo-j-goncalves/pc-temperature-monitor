@@ -9,6 +9,7 @@
 !/web/
 
 !/.gitignore
+!/LICENSE
 !/README.md
 !/config_HC.yaml
 !/config_JC.yaml

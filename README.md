@@ -20,7 +20,8 @@ visualizes the data.
 │   └── style.css
 ├── systemd/
 │   └── temperature-monitor.service
-└── README.md
+├── README.md
+└── LICENSE
 ```
 
 ## Quick start (setting this up on a new machine)
@@ -332,3 +333,8 @@ If you only want to clear the history but keep the current sensor set/config
 untouched, deleting just `data_HC/temperatures.db*` (and its `-wal`/`-shm`
 files) plus `data_HC/temperatures.csv` — leaving `latest.json` alone — has
 the same effect; the service doesn't need any file to pre-exist.
+
+## License and credits
+
+MIT — see [LICENSE](LICENSE). Author: Rodrigo J. Gonçalves.
+- I _claudeveloped_ this ([add claude model info])
