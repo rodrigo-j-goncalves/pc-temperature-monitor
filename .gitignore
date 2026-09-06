@@ -1,0 +1,20 @@
+# Ignore everything by default (whitelist below), so anything dropped into
+# this folder later (scratch data, local notes, session pointers) never gets
+# picked up by `git add -A` unless explicitly un-ignored here.
+*
+
+# Un-ignore directories first -- git won't look inside an ignored directory
+# for the file-level exceptions below otherwise.
+!/systemd/
+!/web/
+
+!/.gitignore
+!/README.md
+!/config.yaml
+!/monitor.py
+!/plot.md
+!/sensors.py
+!/systemd/temperature-monitor.service
+!/web/app.js
+!/web/index.html
+!/web/style.css

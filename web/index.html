@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Temperature Monitor</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Temperature Monitor</h1>
+    <div class="header-controls">
+      <button id="theme-toggle" type="button">Toggle theme</button>
+    </div>
+  </header>
+
+  <p id="status-banner" class="status-banner" hidden></p>
+
+  <section id="current-values" class="current-values"></section>
+  <p id="last-updated" class="last-updated"></p>
+
+  <section class="chart-controls">
+    <div id="range-buttons" class="range-buttons"></div>
+    <div class="date-range">
+      <label>From <input type="date" id="range-from" /></label>
+      <label>To <input type="date" id="range-to" /></label>
+      <button id="apply-range" type="button">Apply</button>
+    </div>
+    <button id="export-png" type="button">Export PNG</button>
+  </section>
+
+  <div id="chart" class="chart"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+[Unit]
+Description=Temperature monitoring daemon
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /path/to/temperature-monitor-logger/monitor.py --config /path/to/temperature-monitor-logger/config.yaml
+Restart=on-failure
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
