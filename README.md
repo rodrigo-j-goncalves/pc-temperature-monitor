@@ -349,18 +349,3 @@ If you only want to clear the history but keep the current sensor set/config
 untouched, deleting just `data_HC/temperatures.db*` (and its `-wal`/`-shm`
 files) plus `data_HC/temperatures.csv` — leaving `latest.json` alone — has
 the same effect; the service doesn't need any file to pre-exist.
-
-## TODO after a remote install (SSH / RustDesk / VNC / ...)
-
-If this was installed over a remote session, `tty_display` was likely left
-disabled since the live console view can't be verified remotely (switching
-virtual terminals only changes the display on the machine you're sitting
-at, not the one you're remoted into). Once you have physical or KVM access
-to the machine:
-
-- [ ] Free tty3 from the login prompt: `sudo systemctl disable --now getty@tty3.service`.
-- [ ] Set `tty_display.enabled: true` in this machine's config file.
-- [ ] Restart the service: `sudo systemctl restart temperature-monitor.service`.
-- [ ] Switch to the console (`Ctrl+Alt+F3`) and confirm the live readout renders and updates correctly.
-- [ ] If it looks wrong, or `journalctl -u temperature-monitor.service` shows tty-related warnings, set `tty_display.enabled` back to `false`.
-- [ ] Decide whether tty3 is actually wanted at all — if not, switch the service to run as your own user instead of root (see the note at the end of [Installing as a systemd service](#installing-as-a-systemd-service)).
