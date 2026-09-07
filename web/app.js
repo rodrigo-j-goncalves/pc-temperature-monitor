@@ -29,6 +29,7 @@ const MIN_GAP_MS = 60 * 60 * 1000;
 let sensorLabels = {}; // sensor_id -> human-readable label
 let plotDiv = null;
 let lastGaps = []; // [{start: Date, end: Date}, ...] for the currently loaded data
+let earliestDataDate = null; // Date of the first recorded sample, or null if none loaded yet
 
 // Data is stored/transmitted in UTC; the dashboard displays it in the
 // viewer's local time. Plotly's date axis shows whatever string it's given
@@ -77,7 +78,7 @@ function splitOnGaps(dates, series, sensorIds, threshold) {
 function parseCsv(text) {
   const lines = text.split(/\r\n|\n/).filter((line) => line.length > 0);
   if (lines.length === 0) {
-    return { timestamps: [], sensorIds: [], series: {}, gaps: [] };
+    return { timestamps: [], sensorIds: [], series: {}, gaps: [], firstDate: null };
   }
   const header = lines[0].split(",");
   const sensorIds = header.slice(1);
@@ -94,7 +95,7 @@ function parseCsv(text) {
     }
   }
   if (dates.length === 0) {
-    return { timestamps: [], sensorIds, series: rawSeries, gaps: [] };
+    return { timestamps: [], sensorIds, series: rawSeries, gaps: [], firstDate: null };
   }
   const threshold = computeGapThreshold(dates);
   const { dates: splitDates, series: splitSeries, gaps } = splitOnGaps(
@@ -104,7 +105,7 @@ function parseCsv(text) {
     threshold
   );
   const timestamps = splitDates.map(toLocalNaive);
-  return { timestamps, sensorIds, series: splitSeries, gaps };
+  return { timestamps, sensorIds, series: splitSeries, gaps, firstDate: dates[0] };
 }
 
 function friendlyLabel(sensorId) {
@@ -216,6 +217,7 @@ function plotLayout() {
 
 function renderChart(csvData) {
   lastGaps = csvData.gaps;
+  earliestDataDate = csvData.firstDate;
   const traces = csvData.sensorIds.map((id) => ({
     x: csvData.timestamps,
     y: csvData.series[id],
@@ -233,7 +235,14 @@ function applyRange(ms) {
     return;
   }
   const now = new Date();
-  const from = new Date(now.getTime() - ms);
+  let from = new Date(now.getTime() - ms);
+  // Don't ask Plotly to show a window that starts before any data exists --
+  // that just draws an unexplained blank margin. Clamp to the earliest
+  // recorded sample instead, so "Last N days" always shows what's actually
+  // there.
+  if (earliestDataDate && earliestDataDate > from) {
+    from = earliestDataDate;
+  }
   Plotly.relayout(plotDiv, { "xaxis.range": [toLocalNaive(from), toLocalNaive(now)] });
 }
 
